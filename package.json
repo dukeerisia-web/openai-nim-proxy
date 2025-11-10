@@ -1,7 +1,6 @@
 {
   "name": "openai-nim-proxy",
   "version": "1.0.0",
-  "description": "OpenAI compatible proxy for NVIDIA NIM API",
   "main": "api/index.js",
   "scripts": {
     "start": "node api/index.js"
@@ -14,6 +13,5 @@
   },
   "engines": {
     "node": "22.x"
-  },
-  "license": "MIT"
+  }
 }
