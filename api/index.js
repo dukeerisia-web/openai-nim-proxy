@@ -34,7 +34,6 @@ app.get('/', (req, res) => {
       models: "/v1/models",
       chat: "/v1/chat/completions"
     },
-    note: "Use /health to verify deployment or connect via an OpenAI-compatible client."
   });
 });
 
@@ -56,32 +55,26 @@ app.get('/v1/models', (req, res) => {
     created: Date.now(),
     owned_by: 'nvidia-nim-proxy'
   }));
-
   res.json({ object: 'list', data: models });
 });
 
-// Chat completions
+// Chat completions (simplified, no streaming)
 app.post('/v1/chat/completions', async (req, res) => {
   try {
-    const { model, messages, temperature, max_tokens, stream } = req.body;
+    const { model, messages, temperature, max_tokens } = req.body;
+    const nimModel = MODEL_MAPPING[model] || 'meta/llama-3.1-8b-instruct';
 
-    let nimModel = MODEL_MAPPING[model];
-    if (!nimModel) {
-      // Simple fallback logic
-      nimModel = 'meta/llama-3.1-8b-instruct';
-    }
-
-    const nimRequest = {
+    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, {
       model: nimModel,
-      messages: messages,
+      messages,
       temperature: temperature || 0.6,
       max_tokens: max_tokens || 9024,
-      extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
-      stream: stream || false
-    };
-
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
-      headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' }
+      extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined
+    }, {
+      headers: {
+        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
     });
 
     // Transform NIM response to OpenAI format
@@ -103,19 +96,19 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     res.json(openaiResponse);
   } catch (error) {
-    console.error('Proxy error:', error.message);
     res.status(error.response?.status || 500).json({
-      error: { message: error.message || 'Internal server error', type: 'invalid_request_error', code: error.response?.status || 500 }
+      error: { message: error.message || 'Internal server error', type: 'invalid_request_error' }
     });
   }
 });
 
-// Catch-all 404
+// 404 for everything else
 app.all('*', (req, res) => {
   res.status(404).json({
     error: { message: `Endpoint ${req.path} not found`, type: 'invalid_request_error', code: 404 }
   });
 });
 
+// Export for Vercel
 module.exports = app;
 module.exports.handler = serverless(app);
